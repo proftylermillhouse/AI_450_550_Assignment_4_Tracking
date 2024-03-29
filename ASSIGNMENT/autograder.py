@@ -14,7 +14,15 @@
 
 # imports from python standard library
 import grading
-import imp
+
+# CTM 2022-01-14: imp deprecated
+#    used for imp.new_module(<string>), replace with types.ModuleType(<string>)
+#    used for imp.load_module(), replace with importlib.machinery and types, see:
+#       https://stackoverflow.com/questions/19009932/import-arbitrary-python-source-file-python-3-3
+# import imp
+import types
+import importlib.machinery
+
 import optparse
 import os
 import re
@@ -26,6 +34,7 @@ try:
     from pacman import GameState
 except:
     pass
+
 
 # register arguments and set default values
 def readCommand(argv):
@@ -114,27 +123,40 @@ def setModuleName(module, filename):
         elif type(o) == classType:
             setattr(o, '__file__', filename)
             # TODO: assign member __file__'s?
-        #print i, type(o)
+        #print(i, type(o))
 
 
-#from cStringIO import StringIO
+# from cStringIO import StringIO
 
 def loadModuleString(moduleSource):
     # Below broken, imp doesn't believe its being passed a file:
     #    ValueError: load_module arg#2 should be a file or None
     #
-    #f = StringIO(moduleCodeDict[k])
-    #tmp = imp.load_module(k, f, k, (".py", "r", imp.PY_SOURCE))
-    tmp = imp.new_module(k)
-    exec(moduleCodeDict[k],tmp.__dict__)
+    # f = StringIO(moduleCodeDict[k])
+    # tmp = imp.load_module(k, f, k, (".py", "r", imp.PY_SOURCE))
+
+    # CTM 2022-01-14: module imp deprecated.
+    #   (although this looks like dead code, still fixing at least this part...)
+    #   Analog to imp.new_module(<string_module_name>) is types.ModuleType(<string_module_name>)
+    # tmp = imp.new_module(k)
+
+    tmp = types.ModuleType(k)
+    exec(moduleCodeDict[k] in tmp.__dict__)
     setModuleName(tmp, k)
     return tmp
 
-import py_compile
+
+# import py_compile
 
 def loadModuleFile(moduleName, filePath):
-    with open(filePath, 'r') as f:
-        return imp.load_module(moduleName, f, "%s.py" % moduleName, (".py", "r", imp.PY_SOURCE))
+    # CTM 2022-01-14: replacing imp.load_module with updated approach using importlib and types
+    #   https://stackoverflow.com/questions/19009932/import-arbitrary-python-source-file-python-3-3
+    loader = importlib.machinery.SourceFileLoader(moduleName, filePath)
+    mod = types.ModuleType(loader.name)
+    loader.exec_module(mod)
+    return mod
+    # with open(filePath, 'r') as f:
+    #     return imp.load_module(moduleName, f, "%s.py" % moduleName, (".py", "r", imp.PY_SOURCE))
 
 
 def readFile(path, root=""):
@@ -269,8 +291,8 @@ def evaluate(generateSolutions, testRoot, moduleDict, exceptionMap=ERROR_HINT_MA
         questionDicts[q] = questionDict
 
         # load test cases into question
-        tests = list(filter(lambda t: re.match('[^#~.].*\.test\Z', t), os.listdir(subdir_path)))
-        tests = list(map(lambda t: re.match('(.*)\.test\Z', t).group(1), tests))
+        tests = filter(lambda t: re.match('[^#~.].*\.test\Z', t), os.listdir(subdir_path))
+        tests = map(lambda t: re.match('(.*)\.test\Z', t).group(1), tests)
         for t in sorted(tests):
             test_file = os.path.join(subdir_path, '%s.test' % t)
             solution_file = os.path.join(subdir_path, '%s.solution' % t)
